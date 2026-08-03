@@ -184,14 +184,8 @@ echo %SSH_KEY_PATH%
 python -c "import linux_mcp_toolkit; print('✅ 安装成功')"
 ```
 
-#### 步骤2：测试命令行
-```bash
-# 测试连接
-linux-mcp-toolkit --host 192.168.1.100 --ping
-
-# 执行简单命令
-linux-mcp-toolkit --host 192.168.1.100 --command "uname -a"
-```
+#### 步骤2：确认无独立 CLI 子命令
+该包是 MCP server，入口 `main()` 仅调用 `mcp.run()`，**不提供** `--host` / `--ping` / `--command` 等命令行参数。安装是否成功以步骤1 的 `import` 测试为准；实际使用需先在 AI 客户端配置 MCP server（见下面"配置文件设置"），重启客户端后由客户端调用工具。
 
 #### 步骤3：重启AI客户端
 重启你的Claude Desktop/Cursor/Windsurf，开始使用！
@@ -340,13 +334,24 @@ tail -f /var/log/nginx/access.log
 | **AI客户端无响应** | 重启客户端、检查配置文件 | 查看客户端日志 |
 
 ### 🔍 调试模式
-```bash
-# 启用详细日志
-linux-mcp-toolkit --debug --host 192.168.1.100 --command "uptime"
+该包**不提供** `--debug` / `--config-test` 等命令行开关。排查问题时用以下方式：
 
-# 测试配置文件
-linux-mcp-toolkit --config-test
+```bash
+# 1. 验证包可导入且配置解析正常（不连真实服务器）
+python -c "from linux_mcp_toolkit.main import _resolve_host, _resolve_credentials; print(_resolve_host(), _resolve_credentials())"
+
+# 2. 用真实环境变量单跑一条命令（绕过 AI 客户端，直接验证 SSH 连通性）
+env HOST=192.168.1.100 USERNAME=root PASSWORD='...' python -c "
+import asyncio, linux_mcp_toolkit.main as m
+print(asyncio.run(m.execute_command.__wrapped__('uname -a', '192.168.1.100')))
+"
+
+# 3. 查看 AI 客户端的 MCP server 日志（连接失败、配置错误都会在这里）
+#    Claude Desktop: %APPDATA%\Claude\logs\mcp-server-linux-mcp-toolkit.log (Windows)
+#                    ~/Library/Logs/Claude/mcp*.log (macOS)
 ```
+
+服务端日志默认 `WARNING` 级别（`logging.basicConfig(level=logging.WARNING)`），连接失败、配置文件读取异常、空闲回收等都会输出到 stderr。
 
 ## 🎉 3分钟快速上手
 
