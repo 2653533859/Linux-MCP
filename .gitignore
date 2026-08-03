@@ -97,3 +97,6 @@ dist/
 *.key
 id_rsa*
 config.py
+
+# WorkBuddy workspace memory (local agent state, not project data)
+.workbuddy/

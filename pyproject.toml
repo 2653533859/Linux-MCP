@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linux-mcp-toolkit"
-version = "1.0.12"
+dynamic = ["version"]
 authors = [
     {name = "Linux MCP Toolkit Team", email = "contact@linuxmcp.com"}
 ]
@@ -29,7 +29,11 @@ classifiers = [
 keywords = ["linux", "ssh", "mcp", "system-administration", "remote-management", "interactive-shell"]
 dependencies = [
     "paramiko>=2.7.0",
-    "mcp>=1.0.0",
+    # 下界 1.10.0：工具用了 @mcp.tool(structured_output=False)，1.9.x 没有这个参数。
+    # 上界 <2：mcp 2.0 移除了 mcp.server.fastmcp，本项目仍基于 1.x 的 FastMCP
+    "mcp>=1.10.0,<2",
+    # 工具体都跑在 anyio.to_thread 的工作线程里，直接 import 就显式声明
+    "anyio>=4.5",
 ]
 
 [project.urls]
@@ -45,6 +49,10 @@ linux-mcp = "linux_mcp_toolkit.main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["linux_mcp_toolkit*"]
+
+# 版本号唯一来源：linux_mcp_toolkit/__init__.py 的 __version__
+[tool.setuptools.dynamic]
+version = {attr = "linux_mcp_toolkit.__version__"}
 
 [tool.setuptools.package-data]
 "linux_mcp_toolkit" = ["*.json", "*.yaml", "*.txt", "*.md"]

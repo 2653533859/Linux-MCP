@@ -1,0 +1,17 @@
+# 核心依赖
+paramiko>=2.7.0
+# 下界 1.10.0：工具用了 structured_output=False，1.9.x 没有这个参数
+# 上界 <2：mcp 2.0 移除了 mcp.server.fastmcp
+mcp>=1.10.0,<2
+# 工具体都跑在 anyio.to_thread 的工作线程里（mcp 也依赖它，这里显式声明）
+anyio>=4.5
+
+# 开发依赖（可选）
+pytest>=6.0.0
+black>=21.0.0
+flake8>=3.9.0
+mypy>=0.910
+
+# 文档依赖（可选）
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0

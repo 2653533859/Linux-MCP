@@ -131,6 +131,15 @@ pip install -e .
 }
 ```
 
+配置项说明：
+
+- `KEY_FILE`：运行 MCP server 的本机上的 SSH 私钥路径。
+- `PASSPHRASE`：私钥口令；未加密私钥留空即可。
+- `TIMEOUT`：SSH 建立连接、认证和 banner 阶段的超时时间，单位为秒。命令执行的 `timeout` 仍由工具参数单独控制。
+- `RETRY`：首次连接失败后的额外重试次数，取值范围为 `0` 到 `10`。
+
+`PASSWORD`、`KEY_FILE` 等配置值支持使用 `$NAME`、`${NAME}` 或 Windows 的 `%NAME%` 引用本机环境变量，例如 `"KEY_FILE": "$SSH_KEY_PATH"`。
+
 #### 🔐 环境变量设置
 
 **Linux/macOS:**

@@ -5,7 +5,8 @@ Linux MCP Toolkit - 交互式Linux管理工具包
 系统监控、文件操作等功能。
 """
 
-__version__ = "1.0.10"
+# 本仓库版本号的唯一来源，pyproject.toml 通过 dynamic version 读取此处
+__version__ = "1.0.16"
 __author__ = "Linux MCP Toolkit Team"
 __email__ = "contact@linuxmcp.com"
 __description__ = "Enhanced Linux MCP Toolkit with Interactive Shell Support"
