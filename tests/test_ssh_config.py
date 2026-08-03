@@ -144,3 +144,49 @@ def test_authentication_failure_is_not_retried(module, monkeypatch):
         module.create_ssh_connection("server.example", retry=5)
 
     assert len(attempts) == 1
+
+
+def test_strict_host_key_checking_default_uses_reject_policy(module, monkeypatch):
+    """默认严格模式：加载 known_hosts 并设置 RejectPolicy。"""
+    monkeypatch.setattr(module, "STRICT_HOST_KEY_CHECKING", True)
+    monkeypatch.setattr(module, "KNOWN_HOSTS_FILE", "/tmp/nonexistent-known_hosts")
+
+    captured = {}
+
+    class FakeSSH:
+        def load_host_keys(self, filename):
+            captured["loaded"] = filename
+
+        def set_missing_host_key_policy(self, policy):
+            captured["policy"] = policy
+
+    module._apply_host_key_policy(FakeSSH())
+
+    assert captured["loaded"] == "/tmp/nonexistent-known_hosts"
+    assert isinstance(captured["policy"], module.paramiko.RejectPolicy)
+
+
+def test_strict_host_key_checking_disabled_uses_autoadd(module, monkeypatch):
+    """设 STRICT_HOST_KEY_CHECKING=no 退回 AutoAddPolicy（旧行为）。"""
+    monkeypatch.setattr(module, "STRICT_HOST_KEY_CHECKING", False)
+
+    captured = {}
+
+    class FakeSSH:
+        def set_missing_host_key_policy(self, policy):
+            captured["policy"] = policy
+
+    module._apply_host_key_policy(FakeSSH())
+
+    assert isinstance(captured["policy"], module.paramiko.AutoAddPolicy)
+
+
+def test_is_host_key_rejection_distinguishes_unknown_host_vs_network(module):
+    """RejectPolicy 对未登记主机抛的 SSHException 不应重试；网络层 SSHException 仍可重试。"""
+    assert module._is_host_key_rejection(
+        module.paramiko.SSHException("No known_host entry found for 1.2.3.4")
+    ) is True
+    assert module._is_host_key_rejection(
+        module.paramiko.SSHException("Error reading SSH protocol banner")
+    ) is False
+    assert module._is_host_key_rejection(OSError("network down")) is False

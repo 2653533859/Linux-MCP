@@ -58,6 +58,18 @@ PROMPT_SETUP_TIMEOUT = 5
 # 交互式会话 output_buffer 保留的最大分片数，避免 tail -f 之类把内存吃光
 MAX_BUFFER_CHUNKS = 200
 
+# 主机密钥校验。默认严格校验（RejectPolicy + ~/.ssh/known_hosts），连接不在
+# known_hosts 里的主机会被拒绝（防中间人攻击）。设 STRICT_HOST_KEY_CHECKING=no
+# 退回 AutoAddPolicy（首次自动信任，旧行为，不防 MITM）。
+STRICT_HOST_KEY_CHECKING = (
+    os.environ.get('STRICT_HOST_KEY_CHECKING', 'yes').strip().lower()
+    in ('1', 'yes', 'true', 'on')
+)
+# known_hosts 文件路径，默认 ~/.ssh/known_hosts
+KNOWN_HOSTS_FILE = (
+    os.environ.get('KNOWN_HOSTS_FILE') or os.path.expanduser('~/.ssh/known_hosts')
+)
+
 _NO_HOST_MSG = "❌ 未提供 ip_address 参数，且未在环境变量或 MCP 配置中设置 HOST"
 
 def get_mcp_config() -> Dict:
@@ -247,6 +259,44 @@ def _close_quietly(client) -> None:
         pass
 
 
+def _apply_host_key_policy(ssh: 'paramiko.SSHClient') -> None:
+    """配置主机密钥校验策略。
+
+    默认严格模式：加载 KNOWN_HOSTS_FILE 并用 RejectPolicy，连接不在
+    known_hosts 里的主机会被拒绝（防中间人攻击）。设环境变量
+    STRICT_HOST_KEY_CHECKING=no 退回 AutoAddPolicy（首次自动信任，旧行为）。
+
+    用 getattr 兼容 duck-typed 的测试替身（FakeClient 可能没有
+    load_host_keys 方法，此时跳过加载但仍设置策略）。
+    """
+    if STRICT_HOST_KEY_CHECKING:
+        loader = getattr(ssh, 'load_host_keys', None)
+        if callable(loader):
+            try:
+                loader(KNOWN_HOSTS_FILE)
+            except FileNotFoundError:
+                logger.warning(
+                    "known_hosts 文件不存在 (%s)；严格主机密钥校验下，未登记的"
+                    "主机会被拒绝。请先用 ssh 登录一次把主机加入 known_hosts，"
+                    "或设 STRICT_HOST_KEY_CHECKING=no 兼容旧行为。",
+                    KNOWN_HOSTS_FILE,
+                )
+        ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+    else:
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+
+def _is_host_key_rejection(exc: BaseException) -> bool:
+    """RejectPolicy 在主机不在 known_hosts 时抛的 SSHException 属配置问题，不应重试。
+
+    网络层 SSHException 仍走重试；这里只把主机密钥拒绝的实例挑出来。
+    """
+    if isinstance(exc, paramiko.SSHException):
+        msg = str(exc).lower()
+        return 'known_host' in msg or 'not found' in msg or 'reject' in msg
+    return False
+
+
 def _connect_ssh(ip_address: str, username: Optional[str] = None,
                  password: Optional[str] = None, port: Optional[int] = None,
                  key_file: Optional[str] = None,
@@ -272,7 +322,7 @@ def _connect_ssh(ip_address: str, username: Optional[str] = None,
 
     for attempt in range(resolved_retry + 1):
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        _apply_host_key_policy(ssh)
         connect_kwargs = {
             'hostname': ip_address,
             'port': resolved_port,
@@ -298,6 +348,7 @@ def _connect_ssh(ip_address: str, username: Optional[str] = None,
         except Exception as exc:
             _close_quietly(ssh)
             if (isinstance(exc, non_retryable)
+                    or _is_host_key_rejection(exc)
                     or not isinstance(exc, retryable)
                     or attempt >= resolved_retry):
                 raise

@@ -137,6 +137,8 @@ pip install -e .
 - `PASSPHRASE`：私钥口令；未加密私钥留空即可。
 - `TIMEOUT`：SSH 建立连接、认证和 banner 阶段的超时时间，单位为秒。命令执行的 `timeout` 仍由工具参数单独控制。
 - `RETRY`：首次连接失败后的额外重试次数，取值范围为 `0` 到 `10`。
+- `STRICT_HOST_KEY_CHECKING`：是否严格校验 SSH 主机密钥（防中间人攻击）。默认 `yes`：仅允许连接已登记在 known_hosts 里的主机，密钥不匹配或未登记都会拒绝。设为 `no` 退回自动信任首次连接（旧行为，不防 MITM）。
+- `KNOWN_HOSTS_FILE`：known_hosts 文件路径，默认 `~/.ssh/known_hosts`。严格模式下从这里加载已知主机密钥。
 
 `PASSWORD`、`KEY_FILE` 等配置值支持使用 `$NAME`、`${NAME}` 或 Windows 的 `%NAME%` 引用本机环境变量，例如 `"KEY_FILE": "$SSH_KEY_PATH"`。
 
@@ -176,6 +178,7 @@ echo %SSH_KEY_PATH%
 5. **定期轮换密钥**提高安全性
 6. **为AI客户端创建专用用户**，避免使用root
 7. **使用密钥密码**保护私钥文件
+8. **保持主机密钥校验**：默认严格校验已知主机（`STRICT_HOST_KEY_CHECKING=yes`），首次连接前先用 `ssh user@host` 登录一次把主机加入 `~/.ssh/known_hosts`；仅在受控/测试环境才设 `no` 退回自动信任
 
 ### 🔧 验证安装
 

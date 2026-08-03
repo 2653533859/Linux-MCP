@@ -174,7 +174,7 @@ D 剩下的唯一价值是语义：区分「命令失败」（正常返回带 ex
   2. 调低 `MAX_OUTPUT_BYTES`（默认 50000）——它决定单次返回的最坏情况，是唯一能压住尾部风险的旋钮。代价是截断变多、模型要多跑几轮缩小范围。它是环境变量，可以先不改代码试。
   3. ~~`network_info` 收集的内容有重复~~ —— **已做**，见上面「多命令必须批量」（5963B → 2499B）。顺带给 `_run_batch()` 加了行尾空白清理，`quick_system_info` / `monitor_process` 也一起受益。
   4. 合并薄封装工具、精简 docstring —— `tools/list` 现在 6361B（description 2148B）。这是拿正确率换 token，不太值。
-- **E：安全项**——已支持 `KEY_FILE`/`PASSPHRASE` 密钥认证，以及 `TIMEOUT`/`RETRY` 连接参数；两处 `AutoAddPolicy()` 仍不校验主机密钥。（`file_operations` 的 `echo '...' > path` 已换成 SFTP，上传下载和 chmod 也补上了。）
+- **E：安全项**——已支持 `KEY_FILE`/`PASSPHRASE` 密钥认证，以及 `TIMEOUT`/`RETRY` 连接参数；**主机密钥校验已做（2026-08）**：默认严格模式（`STRICT_HOST_KEY_CHECKING=yes`，加载 `KNOWN_HOSTS_FILE` 默认 `~/.ssh/known_hosts` 用 `RejectPolicy`，未登记/不匹配的主机拒绝连接），设 `STRICT_HOST_KEY_CHECKING=no` 退回 `AutoAddPolicy`（旧行为，不防 MITM）。实际只有 `_connect_ssh` 一处 `set_missing_host_key_policy`（`create_ssh_connection` 和 `InteractiveShell.connect` 都走它，所以 CLAUDE.md 早先写的"两处"已合并为一处）。`RejectPolicy` 对未登记主机抛的 `SSHException` 由 `_is_host_key_rejection()` 按消息识别为不可重试，避免无意义重试。测试见 `tests/test_ssh_config.py` 的 `test_strict_host_key_checking_*`。（`file_operations` 的 `echo '...' > path` 已换成 SFTP，上传下载和 chmod 也补上了。）
 - 工具数量偏多（14 个），`service_control` 等薄封装可以合并进 `execute_command`。
 - `execute_interactive_command` 每条命令有约 0.15s 的静默等待开销（`_drain()` 的 quiet 窗口）。想去掉就得让远端在命令前后各打一个 marker，但那样会往 shell 多送一行输入，等待输入的命令会把它吃掉——现在这个折中是故意的。
 - `_run_remote()` 是先 `stdout.read()` 读完再 `stderr.read()`。命令往 stderr 灌到把窗口填满时会死锁（远端写 stderr 阻塞 → 不退出 → stdout 等不到 EOF），最后表现成超时。要修得用 `select` 交替读两个 fd。目前没实测到，属理论风险。
