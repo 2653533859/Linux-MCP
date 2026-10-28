@@ -37,10 +37,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/linux-mcp/linux-mcp-toolkit"
-"Bug Reports" = "https://github.com/linux-mcp/linux-mcp-toolkit/issues"
-"Source" = "https://github.com/linux-mcp/linux-mcp-toolkit"
-Documentation = "https://linux-mcp-toolkit.readthedocs.io"
+Homepage = "https://github.com/2653533859/Linux-MCP"
+"Bug Reports" = "https://github.com/2653533859/Linux-MCP/issues"
+"Source" = "https://github.com/2653533859/Linux-MCP"
+Documentation = "https://github.com/2653533859/Linux-MCP#readme"
 
 [project.scripts]
 linux-mcp-toolkit = "linux_mcp_toolkit.main:main"
@@ -56,3 +56,6 @@ version = {attr = "linux_mcp_toolkit.__version__"}
 
 [tool.setuptools.package-data]
 "linux_mcp_toolkit" = ["*.json", "*.yaml", "*.txt", "*.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

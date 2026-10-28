@@ -41,7 +41,7 @@ uv pip install linux-mcp-toolkit
 
 #### 方式3：开发版安装
 ```bash
-git clone https://github.com/linux-mcp/linux-mcp-toolkit
+git clone https://github.com/2653533859/Linux-MCP
 cd linux-mcp-toolkit
 pip install -e .
 ```
@@ -139,9 +139,10 @@ pip install -e .
 - `RETRY`：首次连接失败后的额外重试次数，取值范围为 `0` 到 `10`。
 - `STRICT_HOST_KEY_CHECKING`：是否严格校验 SSH 主机密钥（防中间人攻击）。默认 `yes`：仅允许连接已登记在 known_hosts 里的主机，密钥不匹配或未登记都会拒绝。设为 `no` 退回自动信任首次连接（旧行为，不防 MITM）。
 - `KNOWN_HOSTS_FILE`：known_hosts 文件路径，默认 `~/.ssh/known_hosts`。严格模式下从这里加载已知主机密钥。
+- `READ_ONLY`：安全只读模式。设为 `1` 或 `yes` 时开启，禁止文件修改（write/create/upload/chmod）、禁止服务控制状态修改，并拦截疑似破坏性 Shell 命令（如 `rm`、`reboot` 等）。
+- `JUMP_HOST`：SSH 跳板机 / 堡垒机地址。设置后自动通过跳板机建立 `direct-tcpip` 隧道代理连接内网目标服务器。支持配套参数 `JUMP_USER`、`JUMP_PORT`、`JUMP_KEY_FILE`、`JUMP_PASSWORD`。
 
 `PASSWORD`、`KEY_FILE` 等配置值支持使用 `$NAME`、`${NAME}` 或 Windows 的 `%NAME%` 引用本机环境变量，例如 `"KEY_FILE": "$SSH_KEY_PATH"`。
-
 #### 🔐 环境变量设置
 
 **Linux/macOS:**
@@ -187,8 +188,17 @@ echo %SSH_KEY_PATH%
 python -c "import linux_mcp_toolkit; print('✅ 安装成功')"
 ```
 
-#### 步骤2：确认无独立 CLI 子命令
-该包是 MCP server，入口 `main()` 仅调用 `mcp.run()`，**不提供** `--host` / `--ping` / `--command` 等命令行参数。安装是否成功以步骤1 的 `import` 测试为准；实际使用需先在 AI 客户端配置 MCP server（见下面"配置文件设置"），重启客户端后由客户端调用工具。
+#### 步骤2：CLI 快速自检连通性
+```bash
+# 1. 查看版本
+linux-mcp-toolkit --version
+
+# 2. 测试配置连通性与诊断信息
+linux-mcp-toolkit --test-connection
+
+# 3. 快速 Ping 目标主机
+linux-mcp-toolkit --ping 192.168.1.100
+```
 
 #### 步骤3：重启AI客户端
 重启你的Claude Desktop/Cursor/Windsurf，开始使用！
@@ -382,8 +392,8 @@ print(asyncio.run(m.execute_command.__wrapped__('uname -a', '192.168.1.100')))
 
 ## 📞 支持与反馈
 
-- **GitHub**: [linux-mcp/linux-mcp-toolkit](https://github.com/linux-mcp/linux-mcp-toolkit)
-- **问题反馈**: [提交Issue](https://github.com/linux-mcp/linux-mcp-toolkit/issues)
-- **文档**: [完整文档](https://github.com/linux-mcp/linux-mcp-toolkit/wiki)
+- **GitHub**: [2653533859/Linux-MCP](https://github.com/2653533859/Linux-MCP)
+- **问题反馈**: [提交Issue](https://github.com/2653533859/Linux-MCP/issues)
+- **文档**: [完整文档](https://github.com/2653533859/Linux-MCP#readme)
 
 **⭐ 如果这个项目帮到了你，请给个Star！**

@@ -70,6 +70,26 @@ KNOWN_HOSTS_FILE = (
     os.environ.get('KNOWN_HOSTS_FILE') or os.path.expanduser('~/.ssh/known_hosts')
 )
 
+# 只读模式配置。设 READ_ONLY=1 或 MCP_READ_ONLY=1 开启，拦截破坏性写操作与命令
+def _is_read_only() -> bool:
+    for val in (os.environ.get('READ_ONLY'), os.environ.get('MCP_READ_ONLY'), MCP_CONFIG.get('read_only')):
+        if val is True:
+            return True
+        if val and str(val).strip().lower() in ('1', 'yes', 'true', 'on'):
+            return True
+    return False
+
+_DANGEROUS_WRITE_RE = re.compile(
+    r'\b(?:rm|dd|mkfs|chmod|chown|reboot|shutdown|poweroff|init\s+[06]|killall|pkill)\b'
+    r'|(?:^|[\s;])>>?\s*(?!&(?:[0-9]|-))[a-zA-Z_.~/]'
+    r'|\|\|\s*(?:rm|dd)'
+)
+
+def _is_dangerous_command(command: str) -> bool:
+    if not command:
+        return False
+    return bool(_DANGEROUS_WRITE_RE.search(command))
+
 _NO_HOST_MSG = "❌ 未提供 ip_address 参数，且未在环境变量或 MCP 配置中设置 HOST"
 
 def get_mcp_config() -> Dict:
@@ -116,6 +136,13 @@ def get_mcp_config() -> Dict:
                     'passphrase': env.get('PASSPHRASE'),
                     'timeout': env.get('TIMEOUT'),
                     'retry': env.get('RETRY'),
+                    'jump_host': env.get('JUMP_HOST'),
+                    'jump_username': env.get('JUMP_USER') or env.get('JUMP_USERNAME'),
+                    'jump_password': env.get('JUMP_PASSWORD'),
+                    'jump_port': env.get('JUMP_PORT'),
+                    'jump_key_file': env.get('JUMP_KEY_FILE'),
+                    'jump_passphrase': env.get('JUMP_PASSPHRASE'),
+                    'read_only': env.get('READ_ONLY') or env.get('MCP_READ_ONLY'),
                 }
         except Exception as e:
             logger.warning(f"读取配置文件 {config_path} 失败: {e}")
@@ -235,6 +262,41 @@ def _resolve_connection_options(key_file: Optional[str] = None,
             _parse_connection_retry(retry_value))
 
 
+def _resolve_jump_options() -> Optional[Dict]:
+    """解析跳板机（Bastion / Jump Host）连接参数"""
+    host = os.environ.get('JUMP_HOST') or MCP_CONFIG.get('jump_host')
+    if not host:
+        return None
+    user = (os.environ.get('JUMP_USER') or os.environ.get('JUMP_USERNAME')
+            or MCP_CONFIG.get('jump_username') or os.environ.get('USERNAME')
+            or MCP_CONFIG.get('username') or DEFAULT_SSH_USERNAME)
+    user = _expand_env_reference(user)
+    pwd = (os.environ.get('JUMP_PASSWORD') or MCP_CONFIG.get('jump_password')
+           or os.environ.get('PASSWORD') or MCP_CONFIG.get('password')
+           or DEFAULT_SSH_PASSWORD)
+    pwd = _expand_env_reference(pwd)
+    try:
+        port = int(os.environ.get('JUMP_PORT') or MCP_CONFIG.get('jump_port')
+                   or DEFAULT_SSH_PORT)
+    except (TypeError, ValueError):
+        port = DEFAULT_SSH_PORT
+    key_file = (os.environ.get('JUMP_KEY_FILE') or MCP_CONFIG.get('jump_key_file')
+                or os.environ.get('KEY_FILE') or MCP_CONFIG.get('key_file'))
+    key_file = _expand_env_reference(key_file)
+    if key_file:
+        key_file = os.path.expanduser(os.path.expandvars(key_file))
+    passphrase = (os.environ.get('JUMP_PASSPHRASE') or MCP_CONFIG.get('jump_passphrase')
+                  or os.environ.get('PASSPHRASE') or MCP_CONFIG.get('passphrase'))
+    passphrase = _expand_env_reference(passphrase)
+    return {
+        'host': host,
+        'user': user,
+        'password': pwd,
+        'port': port,
+        'key_file': key_file,
+        'passphrase': passphrase,
+    }
+
 def _clip(text: str, max_bytes: Optional[int] = None) -> str:
     """限制输出体积：超限时保留头尾并说明省略了多少，避免一次调用打爆上下文"""
     if not text:
@@ -254,10 +316,15 @@ def _clip(text: str, max_bytes: Optional[int] = None) -> str:
 
 def _close_quietly(client) -> None:
     try:
+        jump = getattr(client, '_jump_client', None)
+        if jump is not None:
+            try:
+                jump.close()
+            except Exception:
+                pass
         client.close()
     except Exception:
         pass
-
 
 def _apply_host_key_policy(ssh: 'paramiko.SSHClient') -> None:
     """配置主机密钥校验策略。
@@ -302,8 +369,9 @@ def _connect_ssh(ip_address: str, username: Optional[str] = None,
                  key_file: Optional[str] = None,
                  passphrase: Optional[str] = None,
                  timeout: Optional[float] = None,
-                 retry: Optional[int] = None):
-    """按统一配置建立 SSHClient，网络类失败时执行有限重试。"""
+                 retry: Optional[int] = None,
+                 _is_jump_conn: bool = False):
+    """按统一配置建立 SSHClient，支持跳板机 (JUMP_HOST) 代理与有限重试。"""
     user, pwd, resolved_port = _resolve_credentials(username, password, port)
     resolved_key, resolved_passphrase, resolved_timeout, resolved_retry = (
         _resolve_connection_options(key_file, passphrase, timeout, retry)
@@ -320,43 +388,75 @@ def _connect_ssh(ip_address: str, username: Optional[str] = None,
     retryable = (socket.timeout, TimeoutError, EOFError, OSError,
                  paramiko.SSHException)
 
-    for attempt in range(resolved_retry + 1):
-        ssh = paramiko.SSHClient()
-        _apply_host_key_policy(ssh)
-        connect_kwargs = {
-            'hostname': ip_address,
-            'port': resolved_port,
-            'username': user,
-            'timeout': resolved_timeout,
-            'banner_timeout': resolved_timeout,
-            'auth_timeout': resolved_timeout,
-        }
-        if resolved_key:
-            connect_kwargs['key_filename'] = resolved_key
-            if resolved_passphrase is not None:
-                connect_kwargs['passphrase'] = resolved_passphrase
-        # 配置密钥但没有显式密码时，不把默认提示文本当作密码发送给服务端。
-        if pwd and not (resolved_key and pwd == DEFAULT_SSH_PASSWORD):
-            connect_kwargs['password'] = pwd
+    jump_opts = None if _is_jump_conn else _resolve_jump_options()
+    jump_client = None
+    if jump_opts and jump_opts['host'] != ip_address:
+        jump_client = _connect_ssh(
+            ip_address=jump_opts['host'],
+            username=jump_opts['user'],
+            password=jump_opts['password'],
+            port=jump_opts['port'],
+            key_file=jump_opts['key_file'],
+            passphrase=jump_opts['passphrase'],
+            timeout=resolved_timeout,
+            retry=resolved_retry,
+            _is_jump_conn=True,
+        )
 
-        try:
-            ssh.connect(**connect_kwargs)
-            transport = ssh.get_transport()
-            if transport is not None:
-                transport.set_keepalive(30)
-            return ssh
-        except Exception as exc:
-            _close_quietly(ssh)
-            if (isinstance(exc, non_retryable)
-                    or _is_host_key_rejection(exc)
-                    or not isinstance(exc, retryable)
-                    or attempt >= resolved_retry):
-                raise
-            logger.warning(
-                "SSH 连接到 %s 失败（第 %s/%s 次）: %s；准备重试",
-                ip_address, attempt + 1, resolved_retry + 1, exc,
-            )
-            time.sleep(min(2 ** attempt, 5))
+    try:
+        for attempt in range(resolved_retry + 1):
+            ssh = paramiko.SSHClient()
+            _apply_host_key_policy(ssh)
+            connect_kwargs = {
+                'hostname': ip_address,
+                'port': resolved_port,
+                'username': user,
+                'timeout': resolved_timeout,
+                'banner_timeout': resolved_timeout,
+                'auth_timeout': resolved_timeout,
+            }
+            if resolved_key:
+                connect_kwargs['key_filename'] = resolved_key
+                if resolved_passphrase is not None:
+                    connect_kwargs['passphrase'] = resolved_passphrase
+            if pwd and not (resolved_key and pwd == DEFAULT_SSH_PASSWORD):
+                connect_kwargs['password'] = pwd
+
+            if jump_client is not None:
+                j_transport = jump_client.get_transport()
+                if j_transport is None or not j_transport.is_active():
+                    raise ConnectionError(f"跳板机 {jump_opts['host']} 通道已失效")
+                connect_kwargs['sock'] = j_transport.open_channel(
+                    "direct-tcpip",
+                    (ip_address, resolved_port),
+                    ('127.0.0.1', 0),
+                    timeout=resolved_timeout,
+                )
+
+            try:
+                ssh.connect(**connect_kwargs)
+                if jump_client is not None:
+                    ssh._jump_client = jump_client
+                transport = ssh.get_transport()
+                if transport is not None:
+                    transport.set_keepalive(30)
+                return ssh
+            except Exception as exc:
+                _close_quietly(ssh)
+                if (isinstance(exc, non_retryable)
+                        or _is_host_key_rejection(exc)
+                        or not isinstance(exc, retryable)
+                        or attempt >= resolved_retry):
+                    raise
+                logger.warning(
+                    "SSH 连接到 %s 失败（第 %s/%s 次）: %s；准备重试",
+                    ip_address, attempt + 1, resolved_retry + 1, exc,
+                )
+                time.sleep(min(2 ** attempt, 5))
+    except Exception:
+        if jump_client is not None:
+            _close_quietly(jump_client)
+        raise
 
     raise RuntimeError("SSH connection retry loop ended unexpectedly")
 
@@ -897,6 +997,65 @@ def get_pooled_connection(ip_address, username=None, password=None, port=None):
     return client
 
 
+def _drain_channel(channel, timeout: float) -> Tuple[int, str, str]:
+    """交替非阻塞读取 stdout 和 stderr，消除单管道填满导致的死锁风险。"""
+    deadline = time.time() + max(0.1, float(timeout))
+    stdout_chunks: List[bytes] = []
+    stderr_chunks: List[bytes] = []
+    stdout_eof = False
+    stderr_eof = False
+
+    while True:
+        got_data = False
+
+        while not stdout_eof and channel.recv_ready():
+            try:
+                chunk = channel.recv(65536)
+            except socket.timeout:
+                break
+            if not chunk:
+                stdout_eof = True
+                break
+            stdout_chunks.append(chunk)
+            got_data = True
+
+        while not stderr_eof and channel.recv_stderr_ready():
+            try:
+                chunk = channel.recv_stderr(65536)
+            except socket.timeout:
+                break
+            if not chunk:
+                stderr_eof = True
+                break
+            stderr_chunks.append(chunk)
+            got_data = True
+
+        if (channel.exit_status_ready() and not got_data
+                and not channel.recv_ready() and not channel.recv_stderr_ready()):
+            break
+
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            raise socket.timeout()
+
+        try:
+            select.select([channel], [], [], min(remaining, 0.2))
+        except (ValueError, OSError):
+            break
+
+    if channel.exit_status_ready():
+        code = channel.recv_exit_status()
+    else:
+        deadline = time.time() + 1.0
+        while not channel.exit_status_ready() and time.time() < deadline:
+            time.sleep(0.05)
+        code = channel.recv_exit_status() if channel.exit_status_ready() else -1
+
+    out = b''.join(stdout_chunks).decode('utf-8', errors='ignore')
+    err = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
+    return code, out, err
+
+
 def _run_remote(ip_address: str, command: str, timeout: int = 30) -> Tuple[int, str, str]:
     """在池化连接上执行命令，返回 (exit_code, stdout, stderr)。
 
@@ -906,10 +1065,12 @@ def _run_remote(ip_address: str, command: str, timeout: int = 30) -> Tuple[int, 
     for attempt in (1, 2):
         try:
             ssh = get_pooled_connection(ip_address)
-            _, stdout, stderr = ssh.exec_command(command, timeout=timeout)
-            out = stdout.read().decode('utf-8', errors='ignore')
-            err = stderr.read().decode('utf-8', errors='ignore')
-            code = stdout.channel.recv_exit_status()
+            stdin, stdout, _ = ssh.exec_command(command, timeout=timeout)
+            try:
+                stdin.close()
+            except Exception:
+                pass
+            code, out, err = _drain_channel(stdout.channel, timeout=timeout)
             return code, out, err
         except socket.timeout:
             # socket.timeout（= TimeoutError）的 str() 是空字符串，原样冒泡到工具层
@@ -1099,16 +1260,28 @@ def ping_host(host: str = None, count: int = 4) -> str:
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, **extra
+            cmd, capture_output=True, timeout=30, **extra
         )
+        stdout_text = result.stdout.decode('utf-8', errors='replace') if result.stdout else ""
+        stderr_text = result.stderr.decode('utf-8', errors='replace') if result.stderr else ""
+        if system == "windows":
+            try:
+                import locale
+                loc_enc = locale.getpreferredencoding(False) or 'cp936'
+                if result.stdout:
+                    stdout_text = result.stdout.decode(loc_enc, errors='replace')
+                if result.stderr:
+                    stderr_text = result.stderr.decode(loc_enc, errors='replace')
+            except Exception:
+                pass
 
         output = f"Ping {host} ({system}):\n"
         output += f"Command: {' '.join(cmd)}\n"
         output += f"Return code: {result.returncode}\n"
-        if result.stdout:
-            output += f"Output:\n{_clip(result.stdout)}\n"
-        if result.stderr:
-            output += f"Error:\n{_clip(result.stderr)}\n"
+        if stdout_text:
+            output += f"Output:\n{_clip(stdout_text)}\n"
+        if stderr_text:
+            output += f"Error:\n{_clip(stderr_text)}\n"
         output += "✅ Host is reachable" if result.returncode == 0 else "❌ Host is unreachable"
         return output
 
@@ -1158,6 +1331,9 @@ def execute_interactive_command(ip_address: str, command: str, timeout: int = 30
     一次性命令请用 execute_command，它更快也不需要先建会话。
     ip_address 可传裸IP或 create_interactive_session 返回的完整会话ID。
     """
+    if _is_read_only() and _is_dangerous_command(command):
+        return f"❌ 只读模式已启用 (READ_ONLY=1)，拦截疑似写操作或破坏性命令: {command}"
+
     try:
         session = get_session(ip_address)
     except LookupError as e:
@@ -1222,6 +1398,9 @@ def execute_command(command: str, ip_address: str = None, timeout: int = 30) -> 
     ip_address = _resolve_host(ip_address)
     if not ip_address:
         return _NO_HOST_MSG
+
+    if _is_read_only() and _is_dangerous_command(command):
+        return f"❌ 只读模式已启用 (READ_ONLY=1)，拦截疑似写操作或破坏性命令: {command}"
 
     try:
         return _exec_and_format(command, ip_address, timeout)
@@ -1343,6 +1522,31 @@ def monitor_process(process_name: str, ip_address: str = None) -> str:
 
 @mcp.tool(structured_output=False)
 @_async_tool
+def container_info(ip_address: str = None) -> str:
+    """一次往返获取容器运行时概览：Docker / Podman 引擎状态、活跃容器、资源使用"""
+    ip_address = _resolve_host(ip_address)
+    if not ip_address:
+        return _NO_HOST_MSG
+
+    container_commands = [
+        "(command -v docker >/dev/null 2>&1 && docker info --format 'Docker {{.ServerVersion}} (运行中: {{.ContainersRunning}}, 停止: {{.ContainersStopped}})'"
+        " || command -v podman >/dev/null 2>&1 && podman info --format 'Podman {{.version.Version}}'"
+        " || echo 'Docker / Podman 未安装或服务未启动')",
+
+        "(command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1 && docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' | head -20)"
+        " || (command -v podman >/dev/null 2>&1 && podman ps >/dev/null 2>&1 && podman ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' | head -20)"
+        " || echo '无运行中的容器（或容器服务未响应）')",
+
+        "(command -v docker >/dev/null 2>&1 && docker stats --no-stream >/dev/null 2>&1 && docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}' | head -15)"
+        " || (command -v podman >/dev/null 2>&1 && podman stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}' | head -15)"
+        " || echo '无容器资源统计（或容器服务未响应）')",
+    ]
+    try:
+        return _run_batch(ip_address, container_commands)
+    except Exception as e:
+        return f"Container info failed: {str(e)}"
+@mcp.tool(structured_output=False)
+@_async_tool
 def service_control(service: str, action: str, ip_address: str = None) -> str:
     """控制systemd服务。action 取值: start/stop/restart/status/enable/disable"""
     valid_actions = ["start", "stop", "restart", "status", "enable", "disable"]
@@ -1352,6 +1556,9 @@ def service_control(service: str, action: str, ip_address: str = None) -> str:
     ip_address = _resolve_host(ip_address)
     if not ip_address:
         return _NO_HOST_MSG
+
+    if _is_read_only() and action != "status":
+        return f"❌ 只读模式已启用 (READ_ONLY=1)，禁止修改服务状态: action={action}"
 
     # 走 _exec_and_format 而不是调 execute_command：后者已经被 _async_tool 包成
     # 协程了，直接调只会拿到一个 coroutine
@@ -1380,6 +1587,8 @@ def file_operations(operation: str, path: str, ip_address: str = None,
         return _NO_HOST_MSG
 
     op = (operation or '').strip().lower()
+    if _is_read_only() and op in ("write", "create", "upload", "chmod"):
+        return f"❌ 只读模式已启用 (READ_ONLY=1)，禁止写操作: operation={op}"
     limit = MAX_OUTPUT_BYTES
 
     def _lstat_or_none(sftp, target: str):
@@ -1505,6 +1714,54 @@ def file_operations(operation: str, path: str, ip_address: str = None,
 
 def main():
     """Main entry point for the linux-mcp-toolkit CLI"""
+    import argparse
+
+    version_str = "1.0.16"
+    try:
+        from . import __version__
+        version_str = __version__
+    except Exception:
+        pass
+
+    if len(sys.argv) > 1:
+        parser = argparse.ArgumentParser(
+            prog="linux-mcp-toolkit",
+            description="Linux MCP Toolkit - Remote Linux Server Management via MCP",
+        )
+        parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {version_str}")
+        parser.add_argument("--test-connection", action="store_true", help="测试当前配置到目标主机的 SSH 连通性并输出诊断信息")
+        parser.add_argument("--ping", metavar="HOST", nargs="?", const="", help="Ping 指定主机检测网络可达性（不传参数时使用配置的默认主机）")
+
+        args = parser.parse_args()
+        if args.ping is not None:
+            target_host = args.ping if args.ping else _resolve_host()
+            if not target_host:
+                print("❌ 未提供主机且未配置 HOST 环境变量")
+                sys.exit(1)
+            print(ping_host.__wrapped__(target_host))
+            sys.exit(0)
+
+        if args.test_connection:
+            host = _resolve_host()
+            user, _, port = _resolve_credentials()
+            jump = _resolve_jump_options()
+            print(f"=== Linux MCP Toolkit 配置诊断 ({version_str}) ===")
+            print(f"目标主机: {user}@{host}:{port}")
+            if jump:
+                print(f"跳板机代理: {jump['user']}@{jump['host']}:{jump['port']}")
+            print(f"严格主机密钥校验: {'开启 (RejectPolicy)' if STRICT_HOST_KEY_CHECKING else '关闭 (AutoAddPolicy)'}")
+            print(f"只读安全模式: {'开启 (READ_ONLY=1)' if _is_read_only() else '关闭'}")
+            print("正在尝试建立连接...")
+            try:
+                res = connect_default_host.__wrapped__()
+                print(res)
+                if res.startswith("❌") or res.startswith("⚠️"):
+                    sys.exit(1)
+                sys.exit(0)
+            except Exception as e:
+                print(f"❌ 连接测试失败: {e}")
+                sys.exit(1)
+
     try:
         mcp.run()
     except UnicodeEncodeError:
@@ -1512,7 +1769,6 @@ def main():
         mcp.run()
     finally:
         _shutdown_all()
-
 
 if __name__ == "__main__":
     main()
