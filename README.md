@@ -1,7 +1,7 @@
-# Linux MCP Toolkit (`linux-mcp-toolkit`)
+# Linux MCP Agent (`linux-mcp-agent`)
 
-[![PyPI Version](https://img.shields.io/pypi/v/linux-mcp-toolkit.svg)](https://pypi.org/project/linux-mcp-toolkit/)
-[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://pypi.org/project/linux-mcp-toolkit/)
+[![PyPI Version](https://img.shields.io/pypi/v/linux-mcp-agent.svg)](https://pypi.org/project/linux-mcp-agent/)
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://pypi.org/project/linux-mcp-agent/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP Protocol](https://img.shields.io/badge/MCP-1.10.0%2B-purple.svg)](https://modelcontextprotocol.io/)
 
@@ -67,9 +67,9 @@
 ```json
 {
   "mcpServers": {
-    "linux-mcp-toolkit": {
+    "linux-mcp-agent": {
       "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
+      "args": ["linux-mcp-agent"],
       "env": {
         "HOST": "192.168.1.100",
         "PORT": "22",
@@ -86,9 +86,9 @@
 ```json
 {
   "mcpServers": {
-    "linux-mcp-toolkit": {
+    "linux-mcp-agent": {
       "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
+      "args": ["linux-mcp-agent"],
       "env": {
         "HOST": "10.0.1.50",
         "PORT": "22",
@@ -108,9 +108,9 @@
 ```json
 {
   "mcpServers": {
-    "linux-mcp-toolkit": {
+    "linux-mcp-agent": {
       "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
+      "args": ["linux-mcp-agent"],
       "env": {
         "HOST": "192.168.1.100",
         "USERNAME": "admin",
@@ -126,9 +126,9 @@
 ```json
 {
   "mcpServers": {
-    "linux-mcp-toolkit": {
+    "linux-mcp-agent": {
       "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
+      "args": ["linux-mcp-agent"],
       "env": {
         "HOST": "192.168.1.100",
         "USERNAME": "admin",
@@ -177,16 +177,16 @@
 
 ```bash
 # 1. 打印版本
-linux-mcp-toolkit --version
+linux-mcp-agent --version
 
 # 2. 一键诊断连通性（检测目标主机、跳板机、严格主机密钥策略、只读模式及 SSH 握手状态）
-env HOST=192.168.1.100 USERNAME=root KEY_FILE=~/.ssh/id_rsa linux-mcp-toolkit --test-connection
+env HOST=192.168.1.100 USERNAME=root KEY_FILE=~/.ssh/id_rsa linux-mcp-agent --test-connection
 
 # 3. 本机快速 Ping 目标主机
-linux-mcp-toolkit --ping 192.168.1.100
+linux-mcp-agent --ping 192.168.1.100
 
 # 4. 查看所有 CLI 选项
-linux-mcp-toolkit --help
+linux-mcp-agent --help
 ```
 
 ---

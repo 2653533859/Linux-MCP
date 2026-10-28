@@ -113,7 +113,8 @@ def get_mcp_config() -> Dict:
             # 兼容没有 mcpServers 字段的配置文件（原实现在此处会抛 NameError）
             servers = config.get('mcpServers') or {}
             for server_name, server_config in servers.items():
-                if 'linux-mcp-toolkit' not in server_name.lower():
+                if ('linux-mcp-agent' not in server_name.lower()
+                        and 'linux-mcp-toolkit' not in server_name.lower()):
                     continue
 
                 # 优先读 env 字段，这是 MCP 客户端传配置的标准位置
@@ -1713,10 +1714,10 @@ def file_operations(operation: str, path: str, ip_address: str = None,
         return f"File operation failed: {str(e)}"
 
 def main():
-    """Main entry point for the linux-mcp-toolkit CLI"""
+    """Main entry point for the linux-mcp-agent CLI"""
     import argparse
 
-    version_str = "1.0.16"
+    version_str = "1.0.0"
     try:
         from . import __version__
         version_str = __version__
@@ -1725,8 +1726,8 @@ def main():
 
     if len(sys.argv) > 1:
         parser = argparse.ArgumentParser(
-            prog="linux-mcp-toolkit",
-            description="Linux MCP Toolkit - Remote Linux Server Management via MCP",
+            prog="linux-mcp-agent",
+            description="Linux MCP Agent - Remote Linux Server Management via MCP",
         )
         parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {version_str}")
         parser.add_argument("--test-connection", action="store_true", help="测试当前配置到目标主机的 SSH 连通性并输出诊断信息")
@@ -1745,7 +1746,7 @@ def main():
             host = _resolve_host()
             user, _, port = _resolve_credentials()
             jump = _resolve_jump_options()
-            print(f"=== Linux MCP Toolkit 配置诊断 ({version_str}) ===")
+            print(f"=== Linux MCP Agent 配置诊断 ({version_str}) ===")
             print(f"目标主机: {user}@{host}:{port}")
             if jump:
                 print(f"跳板机代理: {jump['user']}@{jump['host']}:{jump['port']}")

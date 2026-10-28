@@ -60,7 +60,7 @@ def test_cli_diagnostics(module, monkeypatch, capsys):
 
     assert exc.value.code == 0
     captured = capsys.readouterr().out
-    assert "Linux MCP Toolkit 配置诊断" in captured
+    assert "Linux MCP Agent 配置诊断" in captured
     assert "tester@test.example.com:22" in captured
     assert "只读安全模式: 开启 (READ_ONLY=1)" in captured
     assert "✅ Connected successfully" in captured

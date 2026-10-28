@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "linux-mcp-toolkit"
+name = "linux-mcp-agent"
 dynamic = ["version"]
 authors = [
-    {name = "Linux MCP Toolkit Team", email = "contact@linuxmcp.com"}
+    {name = "Linux MCP Team", email = "contact@linuxmcp.com"}
 ]
-description = "Enhanced Linux MCP Toolkit with Interactive Shell Support"
+description = "Linux MCP Agent - Remote Linux Server Management via MCP for AI Clients"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -43,6 +43,7 @@ Homepage = "https://github.com/2653533859/Linux-MCP"
 Documentation = "https://github.com/2653533859/Linux-MCP#readme"
 
 [project.scripts]
+linux-mcp-agent = "linux_mcp_toolkit.main:main"
 linux-mcp-toolkit = "linux_mcp_toolkit.main:main"
 linux-mcp = "linux_mcp_toolkit.main:main"
 

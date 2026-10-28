@@ -1,9 +1,9 @@
 # PyPI 配置信息
 
 ## 项目信息
-- 包名: linux-mcp-toolkit
-- 版本: 1.0.16
-- PyPI页面: https://pypi.org/project/linux-mcp-toolkit/
+- 包名: linux-mcp-agent
+- 版本: 1.0.0
+- PyPI页面: https://pypi.org/project/linux-mcp-agent/
 
 ## 发布命令
 ```bash
@@ -19,7 +19,7 @@ python -m twine upload dist/*
 
 ## 安装命令
 ```bash
-pip install linux-mcp-toolkit
+pip install linux-mcp-agent
 ```
 
 ## 开发环境要求
