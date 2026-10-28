@@ -1,399 +1,248 @@
-# 🚀 Linux MCP Toolkit - 革命性的Linux服务器管理工具
+# Linux MCP Toolkit (`linux-mcp-toolkit`)
 
-## 🎯 项目简介
+[![PyPI Version](https://img.shields.io/pypi/v/linux-mcp-toolkit.svg)](https://pypi.org/project/linux-mcp-toolkit/)
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://pypi.org/project/linux-mcp-toolkit/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP Protocol](https://img.shields.io/badge/MCP-1.10.0%2B-purple.svg)](https://modelcontextprotocol.io/)
 
-### 💡 开发背景
-在AI时代，开发者需要一个能够**用自然语言管理Linux服务器**的工具。传统的SSH命令行方式对非专业人士太复杂，现有工具又缺乏AI集成能力。
+专为大模型客户端（Claude Desktop、Cursor、Windsurf 等）打造的远程 Linux 服务器运维与管理 MCP (Model Context Protocol) Server。
 
-**Linux MCP Toolkit** 应运而生！这是一个专为 **Claude Desktop、Cursor、Windsurf** 等AI客户端设计的MCP服务器，让你能够：
-- 🗣️ **用中文对话管理服务器**："帮我看看nginx状态"
-- 🤖 **AI智能运维**：自动分析系统问题并给出解决方案
-- ⚡ **一键部署**：3分钟完成从安装到使用的全流程
-
-### 🔧 核心功能
-| 功能模块 | 能力描述 | 使用场景 |
-|---------|----------|----------|
-| **🌐 连接管理** | SSH连接、会话保持、自动重连 | 远程服务器管理 |
-| **⚡ 命令执行** | 单次命令、交互式会话、长时间任务 | 系统运维、部署 |
-| **📁 文件操作** | 上传、下载、编辑、权限管理 | 代码部署、配置管理 |
-| **🔧 服务控制** | systemd服务管理、Docker容器操作 | 应用生命周期管理 |
-| **📊 系统监控** | 实时资源监控、日志分析 | 性能优化、故障排查 |
-
-## 🚀 部署指南
-
-### 📋 环境要求
-- **Python**: 3.8+ (推荐3.10+)
-- **操作系统**: Windows/macOS/Linux (开发机)
-- **目标服务器**: 任何支持SSH的Linux系统
-- **AI客户端**: Claude Desktop、Cursor、Windsurf等支持MCP的客户端
-
-### 📦 安装方式（3选1）
-
-#### 方式1：一键安装（推荐）
-```bash
-pip install linux-mcp-toolkit
-```
-
-#### 方式2：UV安装（更快）
-```bash
-uv pip install linux-mcp-toolkit
-```
-
-#### 方式3：开发版安装
-```bash
-git clone https://github.com/2653533859/Linux-MCP
-cd linux-mcp-toolkit
-pip install -e .
-```
-
-### ⚙️ 配置文件设置
-
-#### 1. 找到配置文件
-| 操作系统 | 配置文件路径 |
-|---------|-------------|
-| **Windows** | `%APPDATA%/Claude/claude_desktop_config.json` |
-| **macOS** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| **Linux** | `~/.config/Claude/claude_desktop_config.json` |
-
-#### 2. 基础配置（必做）
-```json
-{
-  "mcpServers": {
-    "linux-mcp-toolkit": {
-      "command": "uvx",
-      "args": ["linux-mcp-toolkit"]
-    }
-  }
-}
-```
-
-#### 3. 安全配置方式（推荐）
-
-**方式A：SSH密钥认证（最安全）**
-```json
-{
-  "mcpServers": {
-    "linux-mcp-toolkit": {
-      "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
-      "env": {
-        "HOST": "192.168.1.100",
-        "PORT": "22",
-        "USERNAME": "root",
-        "KEY_FILE": "D:\\MCP\\linux.pem",
-        "PASSPHRASE": "",
-        "TIMEOUT": "30",
-        "RETRY": "3"
-      }
-    }
-  }
-}
-```
-
-**方式B：系统环境变量（次推荐）**
-```json
-{
-  "mcpServers": {
-    "linux-mcp-toolkit": {
-      "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
-      "env": {
-        "HOST": "192.168.1.100",
-        "PORT": "22",
-        "USERNAME": "root",
-        "PASSWORD": "$SSH_PASSWORD",
-        "KEY_FILE": "$SSH_KEY_PATH",
-        "TIMEOUT": "30",
-        "RETRY": "3"
-      }
-    }
-  }
-}
-```
-
-**方式C：密码认证（仅测试用）**
-```json
-{
-  "mcpServers": {
-    "linux-mcp-toolkit": {
-      "command": "uvx",
-      "args": ["linux-mcp-toolkit"],
-      "env": {
-        "HOST": "192.168.1.100",
-        "PORT": "22",
-        "USERNAME": "root",
-        "PASSWORD": "your_password",
-        "TIMEOUT": "30",
-        "RETRY": "3"
-      }
-    }
-  }
-}
-```
-
-配置项说明：
-
-- `KEY_FILE`：运行 MCP server 的本机上的 SSH 私钥路径。
-- `PASSPHRASE`：私钥口令；未加密私钥留空即可。
-- `TIMEOUT`：SSH 建立连接、认证和 banner 阶段的超时时间，单位为秒。命令执行的 `timeout` 仍由工具参数单独控制。
-- `RETRY`：首次连接失败后的额外重试次数，取值范围为 `0` 到 `10`。
-- `STRICT_HOST_KEY_CHECKING`：是否严格校验 SSH 主机密钥（防中间人攻击）。默认 `yes`：仅允许连接已登记在 known_hosts 里的主机，密钥不匹配或未登记都会拒绝。设为 `no` 退回自动信任首次连接（旧行为，不防 MITM）。
-- `KNOWN_HOSTS_FILE`：known_hosts 文件路径，默认 `~/.ssh/known_hosts`。严格模式下从这里加载已知主机密钥。
-- `READ_ONLY`：安全只读模式。设为 `1` 或 `yes` 时开启，禁止文件修改（write/create/upload/chmod）、禁止服务控制状态修改，并拦截疑似破坏性 Shell 命令（如 `rm`、`reboot` 等）。
-- `JUMP_HOST`：SSH 跳板机 / 堡垒机地址。设置后自动通过跳板机建立 `direct-tcpip` 隧道代理连接内网目标服务器。支持配套参数 `JUMP_USER`、`JUMP_PORT`、`JUMP_KEY_FILE`、`JUMP_PASSWORD`。
-
-`PASSWORD`、`KEY_FILE` 等配置值支持使用 `$NAME`、`${NAME}` 或 Windows 的 `%NAME%` 引用本机环境变量，例如 `"KEY_FILE": "$SSH_KEY_PATH"`。
-#### 🔐 环境变量设置
-
-**Linux/macOS:**
-```bash
-# 设置密码
-export SSH_PASSWORD="your_secure_password"
-
-# 设置密钥路径
-export SSH_KEY_PATH="/home/user/.ssh/id_rsa"
-
-# 验证设置
-echo $SSH_PASSWORD
-echo $SSH_KEY_PATH
-```
-
-**Windows:**
-```cmd
-# 设置密码
-set SSH_PASSWORD=your_secure_password
-
-# 设置密钥路径
-set SSH_KEY_PATH=C:\Users\youruser\.ssh\id_rsa
-
-# 验证设置
-echo %SSH_PASSWORD%
-echo %SSH_KEY_PATH%
-```
-
-#### 🛡️ 安全最佳实践
-1. **优先使用SSH密钥**而非密码认证
-2. **设置正确的密钥权限**：`chmod 600 ~/.ssh/id_rsa`
-3. **避免在配置文件中存储明文密码**
-4. **使用系统环境变量**管理敏感信息
-5. **定期轮换密钥**提高安全性
-6. **为AI客户端创建专用用户**，避免使用root
-7. **使用密钥密码**保护私钥文件
-8. **保持主机密钥校验**：默认严格校验已知主机（`STRICT_HOST_KEY_CHECKING=yes`），首次连接前先用 `ssh user@host` 登录一次把主机加入 `~/.ssh/known_hosts`；仅在受控/测试环境才设 `no` 退回自动信任
-
-### 🔧 验证安装
-
-#### 步骤1：测试包安装
-```bash
-python -c "import linux_mcp_toolkit; print('✅ 安装成功')"
-```
-
-#### 步骤2：CLI 快速自检连通性
-```bash
-# 1. 查看版本
-linux-mcp-toolkit --version
-
-# 2. 测试配置连通性与诊断信息
-linux-mcp-toolkit --test-connection
-
-# 3. 快速 Ping 目标主机
-linux-mcp-toolkit --ping 192.168.1.100
-```
-
-#### 步骤3：重启AI客户端
-重启你的Claude Desktop/Cursor/Windsurf，开始使用！
-
-## 📸 使用示例
-
-### 🎯 场景1：系统信息查询
-**用户对话**："帮我看看服务器的系统信息"
-
-**AI响应**：
-```
-我来帮您查看服务器系统信息：
-
-📊 **系统概览**
-- 主机名: web-server-01
-- 操作系统: Ubuntu 22.04.3 LTS
-- 内核版本: 5.15.0-88-generic
-- 架构: x86_64
-
-💾 **资源使用**
-- CPU: 2核心，当前使用率 15%
-- 内存: 4GB，已使用 2.1GB (52%)
-- 磁盘: 40GB，已使用 12GB (30%)
-- 负载: 0.25, 0.18, 0.12
-
-🌐 **网络状态**
-- 公网IP: 203.0.113.45
-- 内网IP: 192.168.1.100
-- 网络延迟: 12ms
-```
-
-### 🚀 场景2：服务管理
-**用户对话**："nginx服务好像有问题，帮我检查一下"
-
-**AI响应**：
-```
-🔍 **Nginx状态检查**
-
-📊 **服务状态**: active (running) ✅
-📅 **运行时间**: 2天 14小时 36分钟
-👥 **进程数**: 3个nginx进程
-🌐 **监听端口**: 80, 443
-
-📋 **配置文件检查**
-✅ /etc/nginx/nginx.conf - 语法正确
-✅ /etc/nginx/sites-enabled/ - 配置已启用
-
-🚨 **发现的问题**: 
-- 日志显示有404错误 (建议检查网站根目录)
-- SSL证书将在15天后过期
-
-💡 **建议操作**: 
-1. 检查网站文件权限
-2. 更新SSL证书
-3. 重启nginx服务
-```
-
-### 📁 场景3：文件操作
-**用户对话**："帮我在/var/www/html目录下创建一个测试文件"
-
-**AI响应**：
-```
-📁 **文件操作完成**
-
-✅ **创建文件**: /var/www/html/test.html
-📋 **文件内容**:
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>测试页面</title>
-</head>
-<body>
-    <h1>Linux MCP Toolkit 测试成功！</h1>
-    <p>当前时间: 2024-12-27 15:30:45</p>
-</body>
-</html>
-```
-
-🔗 **访问地址**: http://your-server-ip/test.html
-📊 **文件权限**: 644 (rw-r--r--)
-👤 **所有者**: www-data:www-data
-```
-
-### 🐳 场景4：Docker容器管理
-**用户对话**："查看所有运行的容器"
-
-**AI响应**：
-```
-🐳 **Docker容器状态**
-
-📊 **运行中的容器 (3个)**:
-
-1. **nginx-web** (nginx:latest)
-   - 状态: ✅ Up 2 days
-   - 端口: 0.0.0.0:80->80/tcp
-   - 内存: 128MB / 512MB
-
-2. **mysql-db** (mysql:8.0)
-   - 状态: ✅ Up 2 days (healthy)
-   - 端口: 3306/tcp
-   - 内存: 456MB / 1GB
-
-3. **redis-cache** (redis:7-alpine)
-   - 状态: ✅ Up 2 days
-   - 端口: 6379/tcp
-   - 内存: 12MB / 256MB
-
-📈 **资源总计**:
-- 容器总数: 5 (运行中: 3, 已停止: 2)
-- 总内存使用: 596MB / 1.77GB
-- 总CPU使用: 8.5%
-```
-
-### ⚡ 场景5：实时日志监控
-**用户对话**："实时监控nginx访问日志"
-
-**AI响应**：
-```
-📊 **开始监控nginx访问日志**
-
-```bash
-# 实时日志输出 (按Ctrl+C停止)
-tail -f /var/log/nginx/access.log
-
-[15:35:12] 203.0.113.45 - - [27/Dec/2024:15:35:12 +0000] "GET / HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
-[15:35:13] 203.0.113.46 - - [27/Dec/2024:15:35:13 +0000] "GET /api/users HTTP/1.1" 200 567 "-" "curl/7.68.0"
-[15:35:14] 203.0.113.47 - - [27/Dec/2024:15:35:14 +0000] "POST /login HTTP/1.1" 302 456 "https://example.com/login" "Mozilla/5.0"
-
-# 统计信息
-- 当前QPS: 15.3 requests/sec
-- 2xx响应: 85%
-- 4xx响应: 12%
-- 5xx响应: 3%
-```
-
-## 🛠️ 故障排除
-
-### 常见问题速查表
-
-| 问题描述 | 解决方案 | 验证命令 |
-|---------|----------|----------|
-| **连接失败** | 检查SSH服务、防火墙、用户名密码 | `ssh user@host` |
-| **权限错误** | 确认用户权限、使用sudo | `sudo -l` |
-| **包导入失败** | 重新安装、检查Python路径 | `pip show linux-mcp-toolkit` |
-| **AI客户端无响应** | 重启客户端、检查配置文件 | 查看客户端日志 |
-
-### 🔍 调试模式
-该包**不提供** `--debug` / `--config-test` 等命令行开关。排查问题时用以下方式：
-
-```bash
-# 1. 验证包可导入且配置解析正常（不连真实服务器）
-python -c "from linux_mcp_toolkit.main import _resolve_host, _resolve_credentials; print(_resolve_host(), _resolve_credentials())"
-
-# 2. 用真实环境变量单跑一条命令（绕过 AI 客户端，直接验证 SSH 连通性）
-env HOST=192.168.1.100 USERNAME=root PASSWORD='...' python -c "
-import asyncio, linux_mcp_toolkit.main as m
-print(asyncio.run(m.execute_command.__wrapped__('uname -a', '192.168.1.100')))
-"
-
-# 3. 查看 AI 客户端的 MCP server 日志（连接失败、配置错误都会在这里）
-#    Claude Desktop: %APPDATA%\Claude\logs\mcp-server-linux-mcp-toolkit.log (Windows)
-#                    ~/Library/Logs/Claude/mcp*.log (macOS)
-```
-
-服务端日志默认 `WARNING` 级别（`logging.basicConfig(level=logging.WARNING)`），连接失败、配置文件读取异常、空闲回收等都会输出到 stderr。
-
-## 🎉 3分钟快速上手
-
-1. **📦 安装** (30秒)
-   ```bash
-   pip install linux-mcp-toolkit
-   ```
-
-2. **⚙️ 配置** (60秒)
-   - 复制配置JSON到客户端配置文件
-   - 填入服务器信息
-
-3. **🔄 重启** (30秒)
-   - 重启你的AI客户端
-
-4. **🚀 使用** (60秒)
-   - 开始用自然语言管理服务器！
-
-**示例对话**：
-- "帮我看看服务器状态"
-- "重启nginx服务"
-- "查看今天的日志"
+通过 SSH 与 SFTP 协议，让 AI 客户端能够使用自然语言安全、高效地管理远程 Linux 服务器。提供无状态高并发执行、持久化交互式 PTY 会话、容器与系统状态诊断、SFTP 文件管理以及跳板机代理。
 
 ---
 
-## 📞 支持与反馈
+## 🌟 核心特性
 
-- **GitHub**: [2653533859/Linux-MCP](https://github.com/2653533859/Linux-MCP)
-- **问题反馈**: [提交Issue](https://github.com/2653533859/Linux-MCP/issues)
-- **文档**: [完整文档](https://github.com/2653533859/Linux-MCP#readme)
+- **⚡ 双轨连接架构**：
+  - **无状态高并发连接池**：连接自动复用与 Keepalive 保活，一次性命令和状态巡检毫秒级往返。
+  - **持久化交互式 PTY 会话**：保留工作目录（`cwd`）与环境变量，支持需要用户输入确认的交互式命令（如 `sudo`、密码提示、持续日志采样）。
+- **🛡️ 生产级安全防护**：
+  - **默认严格主机密钥校验**（`StrictHostKeyChecking=yes`）：加载 `known_hosts`，使用 `RejectPolicy` 拦截未登记或不匹配的主机，有效防御中间人（MITM）攻击。
+  - **企业跳板机代理**（`JUMP_HOST`）：通过 Bastion / Jump Host 建立 `direct-tcpip` 隧道代理，可无缝纳管隔离私有云内的目标主机。
+  - **Opt-in 只读安全模式**（`READ_ONLY=1`）：审计或只读监控场景下一键开启，严格阻断文件修改、服务生命周期变更及高危破坏性命令（如 `rm`、`reboot` 等）。
+  - **SFTP 原生文件引擎**：杜绝传统拼接 Shell 命令造成的字符转义与注入风险。
+- **🪙 极致 Token 优化**：
+  - 禁用双重结构化输出（`structured_output=False`），单次响应 Payload 降低约 50%。
+  - 系统诊断多命令单次 SSH 往返执行（`_run_batch`），自动清理无效行尾空格并保留排版缩进。
+  - 输出熔断保底截断（默认 50KB），保留头尾关键上下文，防止超长输出撑爆模型上下文。
+- **🛠️ 本地 CLI 辅助自检**：内建 `--test-connection`、`--ping`、`--version` 诊断工具，在接入 AI 客户端前即可完成离线验证。
 
-**⭐ 如果这个项目帮到了你，请给个Star！**
+---
+
+## 📋 15 个内建 MCP 工具一览
+
+| 类别 | 工具名称 | 参数签名 | 功能说明 |
+| :--- | :--- | :--- | :--- |
+| **网络与连接** | `connect_default_host` | `()` | 使用当前环境变量或 MCP 配置连接默认主机，返回当前用户、主机名和负载 |
+| | `ping_host` | `(host?, count=4)` | 本机直接执行 Ping 测试网络连通性与延迟（不走 SSH，支持跨平台输出编码） |
+| | `create_interactive_session` | `(ip_address?, username?, password?, ...)` | 创建持久化 PTY 交互会话，返回形如 `root@host:22` 的会话 ID |
+| | `list_active_sessions` | `()` | 列出所有活跃的交互会话及其空闲时长（空闲超期自动回收） |
+| | `close_session` | `(ip_address)` | 显式关闭并释放远端 PTY 会话与 Shell 资源 |
+| **命令执行** | `execute_command` | `(command, ip_address?, timeout=30)` | 在远程主机无状态执行单条命令，返回退出码、标准输出和标准错误 |
+| | `execute_interactive_command` | `(ip_address, command, timeout=30)` | 在指定交互会话中执行命令，保留上一条命令留下的状态（目录与环境变量） |
+| | `send_interactive_input` | `(ip_address, input_text)` | 向处于等待输入状态的会话发送文本（用于确认提示、密码交互等） |
+| | `get_real_time_output` | `(ip_address, duration=5)` | 读取指定会话在若干秒内持续产生的输出（用于 `tail -f` 等流式日志） |
+| **系统聚合诊断** | `quick_system_info` | `(ip_address?)` | 单次往返批量获取系统总览：内核、发行版、内存、磁盘与活跃进程 |
+| | `network_info` | `(ip_address?)` | 单次往返批量获取网络状态：网卡 IP、监听端口（`ss`/`netstat`）与防火墙状态 |
+| | `monitor_process` | `(process_name, ip_address?)` | 单次往返查看指定进程列表、实例数及对应的 systemd 服务存活状态 |
+| | `container_info` | `(ip_address?)` | 单次往返获取 Docker / Podman 引擎版本、运行中容器列表与资源消耗统计 |
+| | `service_control` | `(service, action, ip_address?)` | 控制 systemd 服务生命周期（`start`/`stop`/`restart`/`status`/`enable`/`disable`） |
+| **文件管理** | `file_operations` | `(operation, path, ip_address?, ...)` | 基于原生 SFTP 通道的文件操作：`read`/`write`/`create`/`list`/`exists`/`upload`/`download`/`chmod` |
+
+---
+
+## 🚀 快速上手
+
+### 1. AI 客户端配置
+
+推荐使用 `uvx` 直接拉起服务，无需在开发机手动安装虚拟环境：
+
+#### Claude Desktop 配置
+配置文件路径：
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+##### 推荐：SSH 密钥认证方式（最安全）
+```json
+{
+  "mcpServers": {
+    "linux-mcp-toolkit": {
+      "command": "uvx",
+      "args": ["linux-mcp-toolkit"],
+      "env": {
+        "HOST": "192.168.1.100",
+        "PORT": "22",
+        "USERNAME": "admin",
+        "KEY_FILE": "/Users/yourname/.ssh/id_rsa",
+        "PASSPHRASE": ""
+      }
+    }
+  }
+}
+```
+
+##### 进阶：跳板机 / 堡垒机网络配置
+```json
+{
+  "mcpServers": {
+    "linux-mcp-toolkit": {
+      "command": "uvx",
+      "args": ["linux-mcp-toolkit"],
+      "env": {
+        "HOST": "10.0.1.50",
+        "PORT": "22",
+        "USERNAME": "appuser",
+        "KEY_FILE": "/Users/yourname/.ssh/id_rsa",
+        "JUMP_HOST": "bastion.example.com",
+        "JUMP_PORT": "22",
+        "JUMP_USER": "bastion_user",
+        "JUMP_KEY_FILE": "/Users/yourname/.ssh/id_rsa"
+      }
+    }
+  }
+}
+```
+
+##### 进阶：只读安全模式配置
+```json
+{
+  "mcpServers": {
+    "linux-mcp-toolkit": {
+      "command": "uvx",
+      "args": ["linux-mcp-toolkit"],
+      "env": {
+        "HOST": "192.168.1.100",
+        "USERNAME": "admin",
+        "READ_ONLY": "1"
+      }
+    }
+  }
+}
+```
+
+#### Cursor 配置
+在 `~/.cursor/mcp.json`（或项目级 `.cursor/mcp.json`）中添加：
+```json
+{
+  "mcpServers": {
+    "linux-mcp-toolkit": {
+      "command": "uvx",
+      "args": ["linux-mcp-toolkit"],
+      "env": {
+        "HOST": "192.168.1.100",
+        "USERNAME": "admin",
+        "KEY_FILE": "$HOME/.ssh/id_rsa"
+      }
+    }
+  }
+}
+```
+
+---
+
+## ⚙️ 配置参数全解
+
+本 Server 解析配置的优先级为：**工具调用显式入参 > 环境变量 > 客户端配置文件 `env` 字段 > 内置默认值**。
+
+| 环境变量 / 配置项 | 默认值 | 作用说明 |
+| :--- | :--- | :--- |
+| `HOST` | - | 默认目标 Linux 主机地址（IP 或域名） |
+| `PORT` | `22` | 默认 SSH 端口 |
+| `USERNAME` | `root` | 登录用户名 |
+| `PASSWORD` | - | 登录密码（若配置了密钥，建议不设密码） |
+| `KEY_FILE` | - | 本机上的 SSH 私钥文件绝对路径（支持 `~` 与环境变量展开） |
+| `PASSPHRASE` | - | 加密 SSH 私钥的密码口令（未加密私钥留空） |
+| `TIMEOUT` | `10` | SSH 建立连接、TCP 握手与 Banner 认证的阶段超时时间（秒） |
+| `RETRY` | `0` | 网络层偶发抖动失败后的额外自动重试次数（`0` ~ `10`） |
+| `STRICT_HOST_KEY_CHECKING` | `yes` | 主机密钥校验策略。默认严格校验（`RejectPolicy`），未登记的主机会被拒绝连接以防 MITM；设为 `no` 退回自动记录（`AutoAddPolicy`） |
+| `KNOWN_HOSTS_FILE` | `~/.ssh/known_hosts` | 严格模式下读取已知主机指纹的文件路径 |
+| `READ_ONLY` | `0` | 只读安全模式。设为 `1` / `yes` / `true` 开启，阻断写文件、服务控制操作及危险 Shell 命令 |
+| `JUMP_HOST` | - | 跳板机 / 堡垒机主机地址。设置后自动建立 `direct-tcpip` 隧道代理目标服务器 |
+| `JUMP_PORT` | `22` | 跳板机 SSH 端口 |
+| `JUMP_USER` | 同 `USERNAME` | 跳板机登录用户名（亦可使用 `JUMP_USERNAME`） |
+| `JUMP_PASSWORD` | 同 `PASSWORD` | 跳板机密码认证 |
+| `JUMP_KEY_FILE` | 同 `KEY_FILE` | 跳板机 SSH 私钥路径 |
+| `JUMP_PASSPHRASE` | 同 `PASSPHRASE` | 跳板机私钥口令 |
+| `MAX_OUTPUT_BYTES` | `50000` | 单次工具输出的最大字节上限，超过时自动保留头尾、省略中间 |
+| `SESSION_IDLE_TIMEOUT` | `600` | 交互会话及池化连接空闲无活动后的回收时间（秒） |
+
+> **配置值引用说明**：`KEY_FILE`、`PASSWORD` 等配置项支持使用 `$VAR_NAME`、`${VAR_NAME}` 或 Windows 的 `%VAR_NAME%` 引用开发机系统环境变量。
+
+---
+
+## 🔍 CLI 连通性自检与脱机排障
+
+在将配置写入 AI 客户端前，可直接在终端中运行 CLI 命令检测配置与网络：
+
+```bash
+# 1. 打印版本
+linux-mcp-toolkit --version
+
+# 2. 一键诊断连通性（检测目标主机、跳板机、严格主机密钥策略、只读模式及 SSH 握手状态）
+env HOST=192.168.1.100 USERNAME=root KEY_FILE=~/.ssh/id_rsa linux-mcp-toolkit --test-connection
+
+# 3. 本机快速 Ping 目标主机
+linux-mcp-toolkit --ping 192.168.1.100
+
+# 4. 查看所有 CLI 选项
+linux-mcp-toolkit --help
+```
+
+---
+
+## 💬 自然语言使用场景示例
+
+配置完成后，重启 AI 客户端即可直接使用自然语言交互：
+
+* **系统巡检**：
+  > “帮我检查一下服务器当前的整体状态、负载和磁盘使用情况。”
+  > （*调用 `quick_system_info` 一次往返汇总返回*）
+
+* **网络与防火墙**：
+  > “看看当前机器开放了哪些监听端口，防火墙有没有开启？”
+  > （*调用 `network_info` 查询网卡接口、`ss -tlnp` 端口与 UFW 状态*）
+
+* **容器与服务监控**：
+  > “服务器上跑了哪些 Docker 容器？资源占用情况如何？”
+  > （*调用 `container_info` 查看 Docker/Podman 版本、活跃容器及 CPU/内存占用*）
+
+* **安全文件修改**：
+  > “读取 `/etc/nginx/nginx.conf` 前 50 行，确认配置是否正确。”
+  > （*调用 `file_operations(operation="read", path=...)` 原生 SFTP 传输*）
+
+* **多步交互排查**：
+  > “进入交互会话，切换到 `/opt/app` 目录，执行数据库迁移脚本并实时观察输出。”
+  > （*调用 `create_interactive_session` + `execute_interactive_command`*）
+
+---
+
+## 🛡️ 生产安全规范建议
+
+1. **避免 root 直连**：建议为 AI 客户端创建独立的专用系统账号，并仅在 `sudoers` 中开放必要的运维指令。
+2. **保持严格主机密钥校验**：默认保持 `STRICT_HOST_KEY_CHECKING=yes`。首次纳管新机器前，在开发机使用 `ssh user@host` 建立指纹认证。
+3. **审计与只读隔离**：若仅授权 AI 客户端分析故障日志和监控巡检，请配置 `READ_ONLY=1`，确保不可产生误操作。
+4. **长耗时命令监控**：对于大型编译、批量更新等慢任务，建议在交互会话中配合 `get_real_time_output` 轮询，避免单条命令执行阻塞超时。
+
+---
+
+## 🛠️ 本地开发与单元测试
+
+```bash
+# 克隆代码库
+git clone https://github.com/2653533859/Linux-MCP.git
+cd Linux-MCP
+
+# 安装开发依赖
+pip install -e .
+pip install pytest
+
+# 运行全量单元测试
+pytest
+```
+
+---
+
+## 📄 开源许可证
+
+本项目基于 [MIT License](LICENSE) 开源。欢迎提交 Issue 与 Pull Request！
